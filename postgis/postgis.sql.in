@@ -4124,7 +4124,7 @@ CREATE OR REPLACE FUNCTION ST_AsGeoJson(gj_version int4, geom geometry, maxdecim
 -----------------------------------------------------------------------
 
 -- ST_AsGeobuf(query, geom_name)
-CREATE OR REPLACE FUNCTION ST_AsGeobuf(varchar, varchar)
+CREATE OR REPLACE FUNCTION ST_AsGeobuf(text, text)
 	RETURNS bytea
 	AS 'MODULE_PATHNAME','LWGEOM_asGeobuf'
 	LANGUAGE 'c' IMMUTABLE STRICT;

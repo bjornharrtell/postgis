@@ -465,14 +465,15 @@ Datum LWGEOM_asGeoJson(PG_FUNCTION_ARGS)
 /**
  * Encode Feature in Geobuf
  */
-PG_FUNCTION_INFO_V1(LWGEOM_asGeoBuf);
-Datum LWGEOM_asGeoBuf(PG_FUNCTION_ARGS)
+PG_FUNCTION_INFO_V1(LWGEOM_asGeobuf);
+Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
 {
 	text *query = PG_GETARG_TEXT_P(0);
 	text *geom_name = PG_GETARG_TEXT_P(1);
 	bytea *result;
 
 	result = palloc(VARHDRSZ);
+	SET_VARSIZE(result, VARHDRSZ);
 
 	PG_RETURN_BYTEA_P(result);
 }
