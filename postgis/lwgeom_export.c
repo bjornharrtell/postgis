@@ -470,8 +470,9 @@ Datum LWGEOM_asGeoBuf(PG_FUNCTION_ARGS)
 {
 	text *query = PG_GETARG_TEXT_P(0);
 	text *geom_name = PG_GETARG_TEXT_P(1);
-	result = palloc(VARHDRSZ);
 	bytea *result;
+
+	result = palloc(VARHDRSZ);
 
 	PG_RETURN_BYTEA_P(result);
 }
