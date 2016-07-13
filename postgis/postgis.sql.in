@@ -4127,8 +4127,7 @@ CREATE OR REPLACE FUNCTION ST_AsGeoJson(gj_version int4, geom geometry, maxdecim
 CREATE OR REPLACE FUNCTION ST_AsGeobuf(varchar, varchar)
 	RETURNS bytea
 	AS 'MODULE_PATHNAME','LWGEOM_asGeobuf'
-	LANGUAGE 'c' IMMUTABLE STRICT  _PARALLEL
-	COST 1000;
+	LANGUAGE 'c' IMMUTABLE STRICT;
 
 ------------------------------------------------------------------------
 -- GeoHash (geohash.org)
