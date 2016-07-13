@@ -26,6 +26,7 @@ Datum LWGEOM_asGML(PG_FUNCTION_ARGS);
 Datum LWGEOM_asKML(PG_FUNCTION_ARGS);
 Datum LWGEOM_asGeoJson(PG_FUNCTION_ARGS);
 Datum LWGEOM_asGeoJson_old(PG_FUNCTION_ARGS);
+Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS);
 Datum LWGEOM_asSVG(PG_FUNCTION_ARGS);
 Datum LWGEOM_asX3D(PG_FUNCTION_ARGS);
 Datum LWGEOM_asEncodedPolyline(PG_FUNCTION_ARGS);
@@ -461,6 +462,19 @@ Datum LWGEOM_asGeoJson(PG_FUNCTION_ARGS)
 	PG_RETURN_TEXT_P(result);
 }
 
+/**
+ * Encode Feature in Geobuf
+ */
+PG_FUNCTION_INFO_V1(LWGEOM_asGeoBuf);
+Datum LWGEOM_asGeoBuf(PG_FUNCTION_ARGS)
+{
+	text *query = PG_GETARG_TEXT_P(0);
+	text *geom_name = PG_GETARG_TEXT_P(1);
+	result = palloc(VARHDRSZ);
+	bytea *result;
+
+	PG_RETURN_BYTEA_P(result);
+}
 
 /**
  * SVG features
