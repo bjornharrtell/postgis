@@ -479,7 +479,7 @@ Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
 	result = palloc(buf_size + VARHDRSZ);
 	memcpy(VARDATA(result), buf, buf_size);
 
-	SET_VARSIZE(result, VARHDRSZ);
+	SET_VARSIZE(result, buf_size + VARHDRSZ);
 	PG_RETURN_BYTEA_P(result);
 }
 
