@@ -469,13 +469,24 @@ Datum LWGEOM_asGeoJson(PG_FUNCTION_ARGS)
 PG_FUNCTION_INFO_V1(LWGEOM_asGeobuf);
 Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
 {
-	// text *query = PG_GETARG_TEXT_P(0);
+	/*
+	text *query = PG_GETARG_TEXT_P(0);
+	
+	SPI_connect();
+	SPI_execute(query, false, 0);
+
+	char* data = SPI_getvalue(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
+	*/
+	
 	// text *geom_name = PG_GETARG_TEXT_P(1);
 	void *buf;
 	size_t buf_size;
 	bytea *result;
 
 	buf = geobuf_test(&buf_size);
+
+	// SPI_finish();
+
 	result = palloc(buf_size + VARHDRSZ);
 	memcpy(VARDATA(result), buf, buf_size);
 
