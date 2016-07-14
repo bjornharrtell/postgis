@@ -1,7 +1,11 @@
-#include "geobuf.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "geobuf.pb-c.h"
 
-void *geobuf_test(size_t* len) {
+int main ()
+{
     void *buf;
+    size_t len;
     uint32_t lengths = 1;
     int64_t coord = 1;
     Data data = DATA__INIT;
@@ -15,8 +19,9 @@ void *geobuf_test(size_t* len) {
     data.data_type_case = DATA__DATA_TYPE_GEOMETRY;
     data.geometry = &geometry;
 
-    *len = data__get_packed_size(&data);
-    buf = malloc(*len);
+    len = data__get_packed_size(&data);
+    buf = malloc(len);
     data__pack(&data, buf);
-    return buf;
+        
+    printf ("Hello World! %d \n", (int) len);
 }
