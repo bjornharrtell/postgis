@@ -21,6 +21,7 @@
 #include "lwgeom_pg.h"
 #include "liblwgeom.h"
 #include "lwgeom_export.h"
+#include "geobuf.h"
 
 Datum LWGEOM_asGML(PG_FUNCTION_ARGS);
 Datum LWGEOM_asKML(PG_FUNCTION_ARGS);
@@ -468,13 +469,17 @@ Datum LWGEOM_asGeoJson(PG_FUNCTION_ARGS)
 PG_FUNCTION_INFO_V1(LWGEOM_asGeobuf);
 Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
 {
-	text *query = PG_GETARG_TEXT_P(0);
-	text *geom_name = PG_GETARG_TEXT_P(1);
+	// text *query = PG_GETARG_TEXT_P(0);
+	// text *geom_name = PG_GETARG_TEXT_P(1);
+	void *buf;
+	size_t buf_size;
 	bytea *result;
 
-	result = palloc(VARHDRSZ);
-	SET_VARSIZE(result, VARHDRSZ);
+	buf = geobuf_test(&buf_size);
+	result = palloc(buf_size + VARHDRSZ);
+	memcpy(VARDATA(result), buf, buf_size);
 
+	SET_VARSIZE(result, VARHDRSZ);
 	PG_RETURN_BYTEA_P(result);
 }
 
