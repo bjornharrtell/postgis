@@ -15,10 +15,12 @@
 
 #include "float.h" /* for DBL_DIG */
 #include "postgres.h"
+#include "utils/builtins.h"
 #include "executor/spi.h"
 
 #include "../postgis_config.h"
 #include "lwgeom_pg.h"
+#include "lwgeom_log.h"
 #include "liblwgeom.h"
 #include "lwgeom_export.h"
 #include "geobuf.h"
@@ -463,6 +465,8 @@ Datum LWGEOM_asGeoJson(PG_FUNCTION_ARGS)
 	PG_RETURN_TEXT_P(result);
 }
 
+#define POSTGIS_DEBUG_LEVEL 4
+
 /**
  * Encode Feature in Geobuf
  */
@@ -473,17 +477,24 @@ Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
 	void *buf;
 	size_t buf_size;
 	bytea *result;
-	text *query;
+	text *query_text;
+	char *query;
+	text *geom_name_text;
+	char *geom_name;
 
-	query = PG_GETARG_TEXT_P(0);
+	POSTGIS_DEBUG(4, "MOOOOO");
+
+	query_text = PG_GETARG_TEXT_P(0);
+	query = text_to_cstring(query_text);
+	geom_name_text = PG_GETARG_TEXT_P(1);
+	geom_name = text_to_cstring(geom_name_text);
 	
+	POSTGIS_DEBUG(3, "MOOOOO");
+
 	SPI_connect();
-	// TODO: convert query to char *
 	count = SPI_execute(query, false, 0);
 
-	// text *geom_name = PG_GETARG_TEXT_P(1);
-
-	buf = geobuf_test(&buf_size, count);
+	buf = geobuf_test(&buf_size, geom_name, count);
 
 	SPI_finish();
 
