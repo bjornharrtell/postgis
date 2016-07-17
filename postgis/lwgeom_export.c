@@ -473,7 +473,6 @@ Datum LWGEOM_asGeoJson(PG_FUNCTION_ARGS)
 PG_FUNCTION_INFO_V1(LWGEOM_asGeobuf);
 Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
 {
-	int count;
 	void *buf;
 	size_t buf_size;
 	bytea *result;
@@ -482,19 +481,15 @@ Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
 	text *geom_name_text;
 	char *geom_name;
 
-	POSTGIS_DEBUG(4, "MOOOOO");
-
 	query_text = PG_GETARG_TEXT_P(0);
 	query = text_to_cstring(query_text);
 	geom_name_text = PG_GETARG_TEXT_P(1);
 	geom_name = text_to_cstring(geom_name_text);
-	
-	POSTGIS_DEBUG(3, "MOOOOO");
 
 	SPI_connect();
-	count = SPI_execute(query, false, 0);
+	SPI_execute(query, true, 0);
 
-	buf = geobuf_test(&buf_size, geom_name, count);
+	buf = geobuf_test(&buf_size, geom_name, SPI_processed);
 
 	SPI_finish();
 
