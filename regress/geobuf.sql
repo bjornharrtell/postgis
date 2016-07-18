@@ -1,1 +1,2 @@
 SELECT encode(ST_AsGeobuf(E'SELECT \'moo\' as test, ST_MakePoint(1.1,2.1) as geom', 'geom'), 'base64');
+SELECT encode(ST_AsGeobuf(E'SELECT \'moo\' as test, ST_MakeLine(ST_MakePoint(1,1),ST_MakePoint(2,2)) as geom', 'geom'), 'base64');

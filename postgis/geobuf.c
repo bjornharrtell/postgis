@@ -58,8 +58,8 @@ LWGEOM* get_lwgeom(int row) {
     return lwgeom;
 }
 
-Data__Geometry* encode_point(LWGEOM* lwgeom) {
-    int i;
+Data__Geometry* encode_point(LWPOINT* lwpoint) {
+    int i, npoints;
     Data__Geometry* geometry;
     uint32_t lengths;
     int64_t* coord;
@@ -69,24 +69,63 @@ Data__Geometry* encode_point(LWGEOM* lwgeom) {
     data__geometry__init(geometry);
     geometry->type = DATA__GEOMETRY__TYPE__POINT;
 
-    pa = ((LWPOINT*) lwgeom)->point;
+    pa = lwpoint->point;
+    npoints = pa->npoints;
 
-    if (pa->npoints == 0) return geometry;
+    if (npoints == 0) return geometry;
 
-    coord = malloc(sizeof (int64_t) * pa->npoints * 2);
+    coord = malloc(sizeof (int64_t) * npoints * 2);
     // TODO: find out why pa->npoints does not work (seems to be 1?!)
-    int num = 1; // pa->npoints;
-    for (i = 0; i < num; i++) {
+    //int num = npoints;
+    for (i = 0; i < npoints; i++) {
         const POINT2D *pt;
         pt = getPoint2d_cp(pa, i);
         coord[i * 2] = pt->x * 10e5;
         coord[i * 2 + 1] = pt->y * 10e5;
     }
 
-    lengths = 2;
-    geometry->n_lengths = 1;
-    geometry->lengths = &lengths;
-    geometry->n_coords = pa->npoints * 2;
+    //lengths = 2;
+    //geometry->n_lengths = 1;
+    //geometry->lengths = &lengths;
+    geometry->n_coords = npoints * 2;
+    geometry->coords = coord;
+
+    return geometry;
+}
+
+Data__Geometry* encode_line(LWLINE* lwline) {
+    int i, c, npoints;
+    Data__Geometry* geometry;
+    uint32_t lengths;
+    int64_t* coord;
+    POINTARRAY *pa;
+
+    geometry = malloc (sizeof (Data__Geometry));
+    data__geometry__init(geometry);
+    geometry->type = DATA__GEOMETRY__TYPE__LINESTRING;
+
+    pa = lwline->points;
+    npoints = pa->npoints;
+
+    if (npoints == 0) return geometry;
+
+    coord = malloc(sizeof (int64_t) * npoints * 2);
+    // TODO: find out why pa->npoints does not work (seems to be 1?!)
+    //int num = npoints;
+    c = 0;
+    int64_t sx = 0;
+    int64_t sy = 0;
+    for (i = 0; i < npoints; i++) {
+        const POINT2D *pt;
+        pt = getPoint2d_cp(pa, i);
+        sx += coord[c++] = pt->x * 10e5 - sx;
+        sy += coord[c++] = pt->y * 10e5 - sy;
+    }
+
+    //lengths = 1;
+    //geometry->n_lengths = 1;
+    //geometry->lengths = &lengths;
+    geometry->n_coords = npoints * 2;
     geometry->coords = coord;
 
     return geometry;
@@ -95,7 +134,27 @@ Data__Geometry* encode_point(LWGEOM* lwgeom) {
 Data__Geometry* encode_geometry(int row, char* geom_name) {
     LWGEOM* lwgeom = get_lwgeom(row);
     int type = lwgeom->type;
-    return encode_point(lwgeom);
+    switch (type)
+	{
+	case POINTTYPE:
+		return encode_point((LWPOINT*)lwgeom);
+	case LINETYPE:
+		return encode_line((LWLINE*)lwgeom);
+	case POLYGONTYPE:
+		return encode_point((LWPOINT*)lwgeom);
+	case MULTIPOINTTYPE:
+		return encode_point((LWPOINT*)lwgeom);
+	case MULTILINETYPE:
+		return encode_point((LWPOINT*)lwgeom);
+	case MULTIPOLYGONTYPE:
+		return encode_point((LWPOINT*)lwgeom);
+	case COLLECTIONTYPE:
+		return encode_point((LWPOINT*)lwgeom);
+	default:
+		lwerror("lwgeom_to_geojson: '%s' geometry type not supported",
+		        lwtype_name(type));
+	}
+    return NULL;
 }
 
 Data__Feature* encode_feature(int row, char* geom_name, uint32_t* properties) {
