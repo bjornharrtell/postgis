@@ -48,24 +48,36 @@ void encode_properties(int row, Data__Feature* feature, uint32_t* properties, ch
 }
 
 Data__Geometry* encode_geometry(int row, char* geom_name) {
-    //Datum datum;
-    //bool isnull;
-    
-    // TODO: find out why PG_LWGEOM is unknown...
-    //PG_LWGEOM * test;
+    int i;
+    Datum datum;
+    GSERIALIZED *geom;
+    bool isnull;
+    int64_t* coord;
+    LWGEOM* lwgeom;
+    POINTARRAY *pa;
     Data__Geometry* geometry;
 
-    uint32_t lengths = 1;
-    int64_t coord = 1;
-    // datum = SPI_getbinval(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, i + 1, &isnull);
-    // lwgeom = (PG_LWGEOM *) PG_DETOAST_DATUM(datum);
+    uint32_t lengths = 2;
+    datum = SPI_getbinval(SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 2, &isnull);
+    geom = (GSERIALIZED *) PG_DETOAST_DATUM(datum);
+    lwgeom = lwgeom_from_gserialized(geom);
     geometry = malloc (sizeof (Data__Geometry));
     data__geometry__init(geometry);
     geometry->type = DATA__GEOMETRY__TYPE__POINT;
+
+    pa = ((LWPOINT*) lwgeom)->point;
+    coord = malloc(sizeof (int64_t) * 2);
+    for (i = 0; i < pa->npoints; i++) {
+        const POINT2D *pt;
+        pt = getPoint2d_cp(pa, i);
+        coord[i * 2] = pt->x * 10e5;
+        coord[i * 2 + 1] = pt->y * 10e5;
+    }
+
     geometry->n_lengths = 1;
     geometry->lengths = &lengths;
-    geometry->n_coords = 1;
-    geometry->coords = &coord;
+    geometry->n_coords = pa->npoints * 2;
+    geometry->coords = coord;
     return geometry;
 }
 
