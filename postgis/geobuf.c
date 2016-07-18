@@ -47,38 +47,55 @@ void encode_properties(int row, Data__Feature* feature, uint32_t* properties, ch
     feature->properties = properties;
 }
 
-Data__Geometry* encode_geometry(int row, char* geom_name) {
-    int i;
+LWGEOM* get_lwgeom(int row) {
     Datum datum;
     GSERIALIZED *geom;
     bool isnull;
-    int64_t* coord;
     LWGEOM* lwgeom;
-    POINTARRAY *pa;
-    Data__Geometry* geometry;
-
-    uint32_t lengths = 2;
     datum = SPI_getbinval(SPI_tuptable->vals[row], SPI_tuptable->tupdesc, 2, &isnull);
     geom = (GSERIALIZED *) PG_DETOAST_DATUM(datum);
     lwgeom = lwgeom_from_gserialized(geom);
+    return lwgeom;
+}
+
+Data__Geometry* encode_point(LWGEOM* lwgeom) {
+    int i;
+    Data__Geometry* geometry;
+    uint32_t lengths;
+    int64_t* coord;
+    POINTARRAY *pa;
+
     geometry = malloc (sizeof (Data__Geometry));
     data__geometry__init(geometry);
     geometry->type = DATA__GEOMETRY__TYPE__POINT;
 
     pa = ((LWPOINT*) lwgeom)->point;
-    coord = malloc(sizeof (int64_t) * 2);
-    for (i = 0; i < pa->npoints; i++) {
+
+    if (pa->npoints == 0) return geometry;
+
+    coord = malloc(sizeof (int64_t) * pa->npoints * 2);
+    // TODO: find out why pa->npoints does not work (seems to be 1?!)
+    int num = 1; // pa->npoints;
+    for (i = 0; i < num; i++) {
         const POINT2D *pt;
         pt = getPoint2d_cp(pa, i);
         coord[i * 2] = pt->x * 10e5;
         coord[i * 2 + 1] = pt->y * 10e5;
     }
 
+    lengths = 2;
     geometry->n_lengths = 1;
     geometry->lengths = &lengths;
     geometry->n_coords = pa->npoints * 2;
     geometry->coords = coord;
+
     return geometry;
+}
+
+Data__Geometry* encode_geometry(int row, char* geom_name) {
+    LWGEOM* lwgeom = get_lwgeom(row);
+    int type = lwgeom->type;
+    return encode_point(lwgeom);
 }
 
 Data__Feature* encode_feature(int row, char* geom_name, uint32_t* properties) {

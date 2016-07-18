@@ -15,3 +15,5 @@ void tupdesc_analyze(char ***keys, uint32_t **properties, char* geom_name);
 Data__Feature* encode_feature(int row, char* geom_name, uint32_t* properties);
 Data__Geometry* encode_geometry(int row, char* geom_name);
 void encode_properties(int row, Data__Feature *feature, uint32_t *properties, char* geom_name);
+LWGEOM* get_lwgeom(int row);
+Data__Geometry* encode_point(LWGEOM* lwgeom);
