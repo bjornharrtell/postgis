@@ -1,5 +1,7 @@
 #include "geobuf.h"
 
+int64_t *encode_coords(POINTARRAY *pa, int len);
+
 void tupdesc_analyze(char ***keys, uint32_t **properties, char *geom_name);
 Data__Feature *encode_feature(int row, char *geom_name, uint32_t *properties);
 Data__Geometry *encode_geometry(int row, char *geom_name);
@@ -7,6 +9,7 @@ void encode_properties(int row, Data__Feature *feature, uint32_t *properties, ch
 LWGEOM* get_lwgeom(int row);
 Data__Geometry *encode_point(LWPOINT *lwgeom);
 Data__Geometry *encode_line(LWLINE *lwline);
+Data__Geometry *encode_polygon(LWPOLY* lwpoly);
 
 void tupdesc_analyze(char ***keys, uint32_t **properties, char *geom_name) {
     int i, c = 0;
@@ -27,7 +30,6 @@ void encode_properties(int row, Data__Feature *feature, uint32_t *properties, ch
     int i, c;
     Data__Value **values;
     int natts = SPI_tuptable->tupdesc->natts;
-    //HeapTuple tuple = SPI_tuptable->vals[row];
     values = malloc (sizeof (Data__Value *) * (natts - 1));
     c = 0;
     for (i = 0; i < natts; i++) {
@@ -36,8 +38,8 @@ void encode_properties(int row, Data__Feature *feature, uint32_t *properties, ch
         char *key;
         key = SPI_tuptable->tupdesc->attrs[i]->attname.data;
         if (strcmp(key, geom_name) == 0) continue;
-        //bool isnull;
-        //Datum datum;
+        // bool isnull;
+        // Datum datum;
         // datum = SPI_getbinval(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, i + 1, &isnull);
         // TODO: Process datum depending on meta
         string_value = SPI_getvalue(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, i + 1);
@@ -95,35 +97,61 @@ Data__Geometry *encode_point(LWPOINT* lwpoint) {
 }
 
 Data__Geometry *encode_line(LWLINE* lwline) {
-    int i, c, npoints;
-    Data__Geometry *geometry;
-    int64_t *dim;
-    int64_t *coord;
     POINTARRAY *pa;
+    Data__Geometry *geometry;
 
     geometry = malloc (sizeof (Data__Geometry));
     data__geometry__init(geometry);
     geometry->type = DATA__GEOMETRY__TYPE__LINESTRING;
 
     pa = lwline->points;
-    npoints = pa->npoints;
 
-    if (npoints == 0) return geometry;
+    if (pa->npoints == 0) return geometry;
 
-    dim = calloc(2, sizeof (int64_t));
-    coord = malloc(sizeof (int64_t) * npoints * 2);
-    c = 0;
-    for (i = 0; i < npoints; i++) {
-        const POINT2D *pt;
-        pt = getPoint2d_cp(pa, i);
-        dim[0] += coord[c++] = pt->x * 10e5 - dim[0];
-        dim[1] += coord[c++] = pt->y * 10e5 - dim[1];
-    }
-
-    geometry->n_coords = npoints * 2;
-    geometry->coords = coord;
+    geometry->n_coords = pa->npoints * 2;
+    geometry->coords = encode_coords(pa, pa->npoints);
 
     return geometry;
+}
+
+Data__Geometry *encode_polygon(LWPOLY* lwpoly) {
+    POINTARRAY *pa;
+    Data__Geometry *geometry;
+
+    geometry = malloc (sizeof (Data__Geometry));
+    data__geometry__init(geometry);
+    geometry->type = DATA__GEOMETRY__TYPE__POLYGON;
+
+    // TODO: consider multiple rings
+    // TODO: consider closed ring 
+    //for (i = 0; i<lwpoly->nrings; i++) {
+        pa = lwpoly->rings[0];
+    //}
+
+    if (pa->npoints == 0) return geometry;
+
+    geometry->n_coords = pa->npoints * 2;
+    geometry->coords = encode_coords(pa, pa->npoints);
+
+    return geometry;
+}
+
+int64_t *encode_coords(POINTARRAY *pa, int len) {
+    int i, c;
+    int64_t *coords;
+    int64_t *dim;
+
+    dim = calloc(2, sizeof (int64_t));
+    coords = malloc(sizeof (int64_t) * len * 2);
+
+    c = 0;
+    for (i = 0; i < len; i++) {
+        const POINT2D *pt;
+        pt = getPoint2d_cp(pa, i);
+        dim[0] += coords[c++] = pt->x * 10e5 - dim[0];
+        dim[1] += coords[c++] = pt->y * 10e5 - dim[1];
+    }
+    return coords;
 }
 
 Data__Geometry* encode_geometry(int row, char* geom_name) {
@@ -136,7 +164,7 @@ Data__Geometry* encode_geometry(int row, char* geom_name) {
 	case LINETYPE:
 		return encode_line((LWLINE*)lwgeom);
 	case POLYGONTYPE:
-		return encode_point((LWPOINT*)lwgeom);
+		return encode_polygon((LWPOLY*)lwgeom);
 	case MULTIPOINTTYPE:
 		return encode_point((LWPOINT*)lwgeom);
 	case MULTILINETYPE:
