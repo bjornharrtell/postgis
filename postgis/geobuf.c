@@ -1,6 +1,14 @@
 #include "geobuf.h"
 
-void tupdesc_analyze(char*** keys, uint32_t** properties, char* geom_name) {
+void tupdesc_analyze(char ***keys, uint32_t **properties, char *geom_name);
+Data__Feature *encode_feature(int row, char *geom_name, uint32_t *properties);
+Data__Geometry *encode_geometry(int row, char *geom_name);
+void encode_properties(int row, Data__Feature *feature, uint32_t *properties, char *geom_name);
+LWGEOM* get_lwgeom(int row);
+Data__Geometry *encode_point(LWPOINT *lwgeom);
+Data__Geometry *encode_line(LWLINE *lwline);
+
+void tupdesc_analyze(char ***keys, uint32_t **properties, char *geom_name) {
     int i, c = 0;
     int natts = SPI_tuptable->tupdesc->natts;
     *keys = malloc(sizeof (char *) * (natts - 1));
@@ -15,17 +23,17 @@ void tupdesc_analyze(char*** keys, uint32_t** properties, char* geom_name) {
     }
 }
 
-void encode_properties(int row, Data__Feature* feature, uint32_t* properties, char* geom_name) {
+void encode_properties(int row, Data__Feature *feature, uint32_t *properties, char *geom_name) {
     int i, c;
-    Data__Value** values;
+    Data__Value **values;
     int natts = SPI_tuptable->tupdesc->natts;
     //HeapTuple tuple = SPI_tuptable->vals[row];
     values = malloc (sizeof (Data__Value *) * (natts - 1));
     c = 0;
     for (i = 0; i < natts; i++) {
-        Data__Value* value;
-        char* string_value;
-        char* key;
+        Data__Value *value;
+        char *string_value;
+        char *key;
         key = SPI_tuptable->tupdesc->attrs[i]->attname.data;
         if (strcmp(key, geom_name) == 0) continue;
         //bool isnull;
@@ -46,7 +54,7 @@ void encode_properties(int row, Data__Feature* feature, uint32_t* properties, ch
     feature->properties = properties;
 }
 
-LWGEOM* get_lwgeom(int row) {
+LWGEOM *get_lwgeom(int row) {
     Datum datum;
     GSERIALIZED *geom;
     bool isnull;
@@ -57,10 +65,10 @@ LWGEOM* get_lwgeom(int row) {
     return lwgeom;
 }
 
-Data__Geometry* encode_point(LWPOINT* lwpoint) {
+Data__Geometry *encode_point(LWPOINT* lwpoint) {
     int i, npoints;
-    Data__Geometry* geometry;
-    int64_t* coord;
+    Data__Geometry *geometry;
+    int64_t *coord;
     POINTARRAY *pa;
 
     geometry = malloc (sizeof (Data__Geometry));
@@ -86,11 +94,11 @@ Data__Geometry* encode_point(LWPOINT* lwpoint) {
     return geometry;
 }
 
-Data__Geometry* encode_line(LWLINE* lwline) {
+Data__Geometry *encode_line(LWLINE* lwline) {
     int i, c, npoints;
-    Data__Geometry* geometry;
-    int64_t* dim;
-    int64_t* coord;
+    Data__Geometry *geometry;
+    int64_t *dim;
+    int64_t *coord;
     POINTARRAY *pa;
 
     geometry = malloc (sizeof (Data__Geometry));
@@ -138,14 +146,14 @@ Data__Geometry* encode_geometry(int row, char* geom_name) {
 	case COLLECTIONTYPE:
 		return encode_point((LWPOINT*)lwgeom);
 	default:
-		lwerror("lwgeom_to_geojson: '%s' geometry type not supported",
+		lwerror("encode_geometry: '%s' geometry type not supported",
 		        lwtype_name(type));
 	}
     return NULL;
 }
 
-Data__Feature* encode_feature(int row, char* geom_name, uint32_t* properties) {
-    Data__Feature* feature;
+Data__Feature *encode_feature(int row, char *geom_name, uint32_t *properties) {
+    Data__Feature *feature;
     feature = malloc (sizeof (Data__Feature));
     data__feature__init(feature);
     feature->geometry = encode_geometry(row, geom_name);
@@ -153,14 +161,16 @@ Data__Feature* encode_feature(int row, char* geom_name, uint32_t* properties) {
     return feature;
 }
 
-void *geobuf_test(size_t* len, char* geom_name, int count) {
-    int i;
-    void* buf;
-    char** keys;
+void *encode_to_geobuf(size_t *len, char *geom_name) {
+    int i, count;
+    void *buf;
+    char **keys;
     uint32_t* properties;
     Data data = DATA__INIT;
     Data__FeatureCollection feature_collection = DATA__FEATURE_COLLECTION__INIT;
     
+    count = SPI_processed;
+
     tupdesc_analyze(&keys, &properties, geom_name);
 
     data.n_keys = SPI_tuptable->tupdesc->natts;

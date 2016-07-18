@@ -468,7 +468,7 @@ Datum LWGEOM_asGeoJson(PG_FUNCTION_ARGS)
 #define POSTGIS_DEBUG_LEVEL 4
 
 /**
- * Encode Feature in Geobuf
+ * Encode query result to Geobuf
  */
 PG_FUNCTION_INFO_V1(LWGEOM_asGeobuf);
 Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
@@ -489,7 +489,7 @@ Datum LWGEOM_asGeobuf(PG_FUNCTION_ARGS)
 	SPI_connect();
 	SPI_execute(query, true, 0);
 
-	buf = geobuf_test(&buf_size, geom_name, SPI_processed);
+	buf = encode_to_geobuf(&buf_size, geom_name);
 
 	SPI_finish();
 
