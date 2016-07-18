@@ -37,8 +37,7 @@ void encode_properties(int row, Data__Feature* feature, uint32_t* properties, ch
         data__value__init(value);
         value->value_type_case = DATA__VALUE__VALUE_TYPE_STRING_VALUE;
         value->string_value = string_value;
-        values[c] = value;
-        c++;
+        values[c++] = value;
     }
 
     feature->n_values = natts - 1;
@@ -61,7 +60,6 @@ LWGEOM* get_lwgeom(int row) {
 Data__Geometry* encode_point(LWPOINT* lwpoint) {
     int i, npoints;
     Data__Geometry* geometry;
-    uint32_t lengths;
     int64_t* coord;
     POINTARRAY *pa;
 
@@ -75,8 +73,6 @@ Data__Geometry* encode_point(LWPOINT* lwpoint) {
     if (npoints == 0) return geometry;
 
     coord = malloc(sizeof (int64_t) * npoints * 2);
-    // TODO: find out why pa->npoints does not work (seems to be 1?!)
-    //int num = npoints;
     for (i = 0; i < npoints; i++) {
         const POINT2D *pt;
         pt = getPoint2d_cp(pa, i);
@@ -84,9 +80,6 @@ Data__Geometry* encode_point(LWPOINT* lwpoint) {
         coord[i * 2 + 1] = pt->y * 10e5;
     }
 
-    //lengths = 2;
-    //geometry->n_lengths = 1;
-    //geometry->lengths = &lengths;
     geometry->n_coords = npoints * 2;
     geometry->coords = coord;
 
@@ -96,7 +89,7 @@ Data__Geometry* encode_point(LWPOINT* lwpoint) {
 Data__Geometry* encode_line(LWLINE* lwline) {
     int i, c, npoints;
     Data__Geometry* geometry;
-    uint32_t lengths;
+    int64_t* dim;
     int64_t* coord;
     POINTARRAY *pa;
 
@@ -109,22 +102,16 @@ Data__Geometry* encode_line(LWLINE* lwline) {
 
     if (npoints == 0) return geometry;
 
+    dim = calloc(2, sizeof (int64_t));
     coord = malloc(sizeof (int64_t) * npoints * 2);
-    // TODO: find out why pa->npoints does not work (seems to be 1?!)
-    //int num = npoints;
     c = 0;
-    int64_t sx = 0;
-    int64_t sy = 0;
     for (i = 0; i < npoints; i++) {
         const POINT2D *pt;
         pt = getPoint2d_cp(pa, i);
-        sx += coord[c++] = pt->x * 10e5 - sx;
-        sy += coord[c++] = pt->y * 10e5 - sy;
+        dim[0] += coord[c++] = pt->x * 10e5 - dim[0];
+        dim[1] += coord[c++] = pt->y * 10e5 - dim[1];
     }
 
-    //lengths = 1;
-    //geometry->n_lengths = 1;
-    //geometry->lengths = &lengths;
     geometry->n_coords = npoints * 2;
     geometry->coords = coord;
 
