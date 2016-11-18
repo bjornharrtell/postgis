@@ -1725,25 +1725,25 @@ isLeft( POINT2D P0, POINT2D P1, POINT2D P2 )
 static int
 calcWindingNumber( POINT2D P, POINTARRAY* V)
 {
-    int    wn = 0;    // the  winding number counter
-    int    n = V->npoints - 1;
+    int wn = 0, n = V->npoints - 1, l;
     POINT2D va, vb;
 
-
-    // loop through all edges of the polygon
-    for (int i=0; i<n; i++) {   // edge from V[i] to  V[i+1]
+    for (int i=0; i<n; i++) {
         getPoint2d_p(V, i, &va);
-        if (va.y <= P.y) {          // start y <= P.y
+        if (va.y <= P.y) {
             getPoint2d_p(V, i+1, &vb);
-            if (vb.y  > P.y)      // an upward crossing
-                 if (isLeft( va, vb, P) > 0)  // P left of  edge
-                     ++wn;            // have  a valid up intersect
-        }
-        else {                        // start y > P.y (no test needed)
+            if (vb.y > P.y)
+                if ((l = isLeft( va, vb, P)) > 0)
+                    ++wn;
+                else if (l == 0)
+                    return 0;
+        } else {
             getPoint2d_p(V, i+1, &vb);
-            if (vb.y  <= P.y)     // a downward crossing
-                 if (isLeft( va, vb, P) < 0)  // P right of  edge
-                     --wn;            // have  a valid down intersect
+            if (vb.y <= P.y)
+                if ((l = isLeft( va, vb, P)) < 0)
+                    --wn;
+                else if (l == 0)
+                    return 0;
         }
     }
     return wn;
