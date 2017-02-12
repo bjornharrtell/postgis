@@ -1300,7 +1300,7 @@ SELECT ST_GeoHash(ST_SetSRID(ST_MakePoint(-126,48),4326),5);
 	  </refsection>
 	</refentry>
 
-	<refentry id="ST_AsMVT">
+	<refentry id="ST_AsGeobuf">
 	  <refnamediv>
 		<refname>ST_AsGeobuf</refname>
 
