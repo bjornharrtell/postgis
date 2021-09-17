@@ -257,7 +257,7 @@ void flatgeobuf_check_magicbytes(struct flatgeobuf_decode_ctx *ctx)
 	uint8_t *buf = ctx->ctx->buf + ctx->ctx->offset;
 	uint32_t i;
 
-	for (i = 0; i < MAGICBYTES_LEN; i++)
+	for (i = 0; i < MAGICBYTES_LEN / 2; i++)
 		if (buf[i] != magicbytes[i])
 			elog(ERROR, "Data is not FlatGeobuf");
 	ctx->ctx->offset += MAGICBYTES_LEN;
