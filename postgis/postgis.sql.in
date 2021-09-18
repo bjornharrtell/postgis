@@ -5005,7 +5005,14 @@ CREATE OR REPLACE FUNCTION pgis_asflatgeobuf_transfn(internal, anyelement)
 	_COST_LOW;
 
 -- Availability: 3.2.0
-CREATE OR REPLACE FUNCTION pgis_asflatgeobuf_transfn(internal, anyelement, text)
+CREATE OR REPLACE FUNCTION pgis_asflatgeobuf_transfn(internal, anyelement, bool)
+	RETURNS internal
+	AS 'MODULE_PATHNAME', 'pgis_asflatgeobuf_transfn'
+	LANGUAGE 'c' IMMUTABLE PARALLEL SAFE
+	_COST_LOW;
+
+-- Availability: 3.2.0
+CREATE OR REPLACE FUNCTION pgis_asflatgeobuf_transfn(internal, anyelement, bool, text)
 	RETURNS internal
 	AS 'MODULE_PATHNAME', 'pgis_asflatgeobuf_transfn'
 	LANGUAGE 'c' IMMUTABLE PARALLEL SAFE
@@ -5028,7 +5035,16 @@ CREATE AGGREGATE ST_AsFlatGeobuf(anyelement)
 );
 
 -- Availability: 3.2.0
-CREATE AGGREGATE ST_AsFlatGeobuf(anyelement, text)
+CREATE AGGREGATE ST_AsFlatGeobuf(anyelement, bool)
+(
+	sfunc = pgis_asflatgeobuf_transfn,
+	stype = internal,
+	parallel = safe,
+	finalfunc = pgis_asflatgeobuf_finalfn
+);
+
+-- Availability: 3.2.0
+CREATE AGGREGATE ST_AsFlatGeobuf(anyelement, bool, text)
 (
 	sfunc = pgis_asflatgeobuf_transfn,
 	stype = internal,

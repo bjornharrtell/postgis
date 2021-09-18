@@ -2,11 +2,21 @@
 #include "feature_generated.h"
 #include "geometrywriter.h"
 #include "geometryreader.h"
+#include "packedrtree.h"
 
 using namespace flatbuffers;
 using namespace FlatGeobuf;
 
 typedef flatgeobuf_ctx ctx;
+
+uint8_t flatgeobuf_magicbytes[] = { 0x66, 0x67, 0x62, 0x03, 0x66, 0x67, 0x62, 0x00 };
+uint8_t FLATGEOBUF_MAGICBYTES_SIZE = sizeof(flatgeobuf_magicbytes);
+uint8_t FLATGEOBUF_MAGICBYTES_LEN = (sizeof(flatgeobuf_magicbytes) / sizeof((flatgeobuf_magicbytes)[0]));
+
+struct FeatureItem : FlatGeobuf::Item {
+    uoffset_t size;
+    uint64_t offset;
+};
 
 int flatgeobuf_encode_header(ctx *ctx)
 {
@@ -43,8 +53,14 @@ int flatgeobuf_encode_header(ctx *ctx)
     if (ctx->srid > 0)
         crs = CreateCrsDirect(fbb, nullptr, ctx->srid);
 
+    std::vector<double> *pEnvelope = nullptr;
+    if (ctx->has_extent) {
+        std::vector<double> envelope = { ctx->xmin, ctx->ymin, ctx->xmax, ctx->ymax };
+        pEnvelope = &envelope;
+    }
+
     const auto header = CreateHeaderDirect(
-        fbb, ctx->name, 0, (GeometryType) ctx->geometry_type, ctx->has_z, ctx->has_m, ctx->has_t, ctx->has_tm, pColumns, ctx->features_count, 16, crs);
+        fbb, ctx->name, pEnvelope, (GeometryType) ctx->geometry_type, ctx->has_z, ctx->has_m, ctx->has_t, ctx->has_tm, pColumns, ctx->features_count, ctx->index_node_size, crs);
     fbb.FinishSizePrefixed(header);
     const auto buffer = fbb.GetBufferPointer();
     const auto size = fbb.GetSize();
@@ -66,13 +82,6 @@ int flatgeobuf_encode_header(ctx *ctx)
     return 0;
 }
 
-static const std::vector<uint8_t> encode_properties(ctx *ctx, FlatBufferBuilder &fbb)
-{
-    std::vector<uint8_t> properties;
-    properties.reserve(1024 * 4);
-    return properties;
-}
-
 int flatgeobuf_encode_feature(ctx *ctx)
 {
     FlatBufferBuilder fbb;
@@ -83,10 +92,6 @@ int flatgeobuf_encode_feature(ctx *ctx)
         LWDEBUGG(3, ctx->lwgeom, "GeometryWriter input LWGEOM");
         GeometryWriter writer(fbb, ctx->lwgeom, (GeometryType) ctx->geometry_type, ctx->has_z, ctx->has_m);
         geometry = writer.write(0);
-        LWDEBUGF(3, "WENDS: %ld", writer.m_ends.size());
-        for (size_t i = 0; i < writer.m_ends.size(); i++) {
-            LWDEBUGF(3, "WENDS: %d", writer.m_ends[i]);
-        }
     }
     if (ctx->properties_len > 0)
         properties = fbb.CreateVector<uint8_t>(ctx->properties, ctx->properties_len);
@@ -111,10 +116,70 @@ int flatgeobuf_encode_feature(ctx *ctx)
 	LWDEBUGF(3, "copying feature to ctx->buf at offset %ld", ctx->offset);
 	memcpy(ctx->buf + ctx->offset, buffer, size);
 
-	ctx->offset += size;
+    if (ctx->create_index) {
+        auto item = (flatgeobuf_item *) lwalloc(sizeof(flatgeobuf_item));
+        auto gbox = lwgeom_get_bbox(ctx->lwgeom);
+        item->xmin = gbox->xmin;
+        item->xmax = gbox->xmax;
+        item->ymin = gbox->ymin;
+        item->ymax = gbox->ymax;
+        item->offset = ctx->offset;
+        item->size = size;
+        ctx->items[ctx->features_count] = item;
+    }
+    ctx->offset += size;
 	ctx->features_count++;
 
     return 0;
+}
+
+void flatgeobuf_create_index(ctx *ctx)
+{
+    // convert to structure expected by packedrtree
+    std::vector<std::shared_ptr<Item>> items;
+    for (uint64_t i = 0; i < ctx->features_count; i++) {
+        const auto item = std::make_shared<FeatureItem>();
+        item->nodeItem = {
+            ctx->items[i]->xmin, ctx->items[i]->ymin, ctx->items[i]->xmax, ctx->items[i]->ymax
+        };
+        item->offset = ctx->items[i]->offset;
+        item->size = ctx->items[i]->size;
+        items.push_back(item);
+    }
+    // sort items
+    hilbertSort(items);
+    // calc extent
+    auto extent = calcExtent(items);
+    ctx->has_extent = true;
+    ctx->xmin = extent.minX;
+    ctx->ymin = extent.minY;
+    ctx->xmax = extent.maxX;
+    ctx->ymax = extent.maxY;
+    // allocate new buffer and write magicbytes
+    auto oldbuf = ctx->buf;
+    auto oldoffset = ctx->offset;
+    ctx->buf = (uint8_t *) lwalloc(sizeof(signed int) + sizeof(flatgeobuf_magicbytes));
+    memcpy(ctx->buf + sizeof(signed int), flatgeobuf_magicbytes, sizeof(flatgeobuf_magicbytes));
+    ctx->offset = sizeof(signed int) + sizeof(flatgeobuf_magicbytes);
+    // write new header
+    flatgeobuf_encode_header(ctx);
+    // create and write index
+    const auto writeData = [&ctx] (const void *data, const size_t size) {
+        ctx->buf = (uint8_t *) lwrealloc(ctx->buf, ctx->offset + size);
+        memcpy(ctx->buf + ctx->offset, data, size);
+    };
+    PackedRTree tree(items, extent, ctx->index_node_size);
+    tree.streamWrite(writeData);
+    ctx->offset += tree.size();
+    // read items and write in sorted order
+    for (auto item : items) {
+        auto featureItem = std::static_pointer_cast<FeatureItem>(item);
+        ctx->buf = (uint8_t *) lwrealloc(ctx->buf, ctx->offset + featureItem->size);
+        LWDEBUGF(2, "copy from offset %ld", featureItem->offset);
+        memcpy(ctx->buf + ctx->offset, oldbuf + featureItem->offset, featureItem->size);
+        ctx->offset += featureItem->size;
+    }
+    lwfree(oldbuf);
 }
 
 int flatgeobuf_decode_feature(ctx *ctx)
@@ -181,10 +246,12 @@ int flatgeobuf_decode_header(ctx *ctx)
 	ctx->offset += size;
 
 	ctx->geometry_type = (uint8_t) header->geometry_type();
+    ctx->features_count = header->features_count();
 	ctx->has_z = header->has_z();
     ctx->has_m = header->has_m();
     ctx->has_t = header->has_t();
     ctx->has_tm = header->has_tm();
+    ctx->index_node_size = header->index_node_size();
     auto crs = header->crs();
     if (crs != nullptr)
         ctx->srid = crs->code();
@@ -204,6 +271,12 @@ int flatgeobuf_decode_header(ctx *ctx)
 
 	LWDEBUGF(2, "ctx->geometry_type: %d", ctx->geometry_type);
 	LWDEBUGF(2, "ctx->columns_len: %d", ctx->columns_size);
+
+    if (ctx->index_node_size > 0 && ctx->features_count > 0) {
+        auto treeSize = PackedRTree::size(ctx->features_count, ctx->index_node_size);
+        LWDEBUGF(2, "Adding tree size %ld to offset", treeSize);
+        ctx->offset += treeSize;
+    }
 
     return 0;
 }

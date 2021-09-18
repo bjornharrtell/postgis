@@ -30,12 +30,13 @@ libdir = @libdir@
 LIBTOOL = @LIBTOOL@
 
 FLATGEOBUF_OBJS = \
-	flatgeobuf_c.o geometrywriter.o geometryreader.o
+	flatgeobuf_c.o geometrywriter.o geometryreader.o packedrtree.o
 
 FLATGEOBUF_HEADERS = \
 	flatgeobuf_c.h \
 	geometrywriter.h \
 	geometryreader.h \
+	packedrtree.h \
 	flatbuffers/flatbuffers.h \
 	flatbuffers/stl_emulation.h
 

@@ -53,7 +53,7 @@ typedef struct flatgeobuf_agg_ctx
 } flatgeobuf_agg_ctx;
 
 
-flatgeobuf_agg_ctx *flatgeobuf_agg_ctx_init(const char *geom_name);
+flatgeobuf_agg_ctx *flatgeobuf_agg_ctx_init(const char *geom_name, const bool create_index);
 void flatgeobuf_agg_transfn(flatgeobuf_agg_ctx *ctx);
 uint8_t *flatgeobuf_agg_finalfn(flatgeobuf_agg_ctx *ctx);
 

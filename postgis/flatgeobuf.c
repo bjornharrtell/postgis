@@ -34,9 +34,6 @@
 #include "utils/datetime.h"
 #include "utils/jsonb.h"
 
-uint8_t magicbytes[] = { 0x66, 0x67, 0x62, 0x03, 0x66, 0x67, 0x62, 0x00 };
-uint8_t MAGICBYTES_LEN = (sizeof(magicbytes) / sizeof((magicbytes)[0]));
-
 static uint8_t get_column_type(Oid typoid) {
 	switch (typoid)
 	{
@@ -121,18 +118,34 @@ static void encode_header(struct flatgeobuf_agg_ctx *ctx)
 	flatgeobuf_encode_header(ctx->ctx);
 }
 
+// ensure properties has room for at least size
 static void ensure_properties_size(struct flatgeobuf_agg_ctx *ctx, size_t size)
 {
 	if (ctx->ctx->properties_size == 0) {
 		ctx->ctx->properties_size = 1024 * 4;
 		POSTGIS_DEBUGF(2, "flatgeobuf: properties buffer to size %d", ctx->ctx->properties_size);
-		ctx->ctx->properties = palloc(sizeof(uint8_t) * ctx->ctx->properties_size);
+		ctx->ctx->properties = palloc(ctx->ctx->properties_size);
 	}
 	if (ctx->ctx->properties_size < size) {
 		ctx->ctx->properties_size = ctx->ctx->properties_size * 2;
 		POSTGIS_DEBUGF(2, "flatgeobuf: reallocating properties buffer to size %d", ctx->ctx->properties_size);
-		ctx->ctx->properties = repalloc(ctx->ctx->properties, sizeof(uint8_t) * ctx->ctx->properties_size);
+		ctx->ctx->properties = repalloc(ctx->ctx->properties, ctx->ctx->properties_size);
 		ensure_properties_size(ctx, size);
+	}
+}
+
+// ensure items have room for at least ctx->ctx->features_count + 1
+static void ensure_items_len(struct flatgeobuf_agg_ctx *ctx)
+{
+	if (ctx->ctx->features_count == 0) {
+		ctx->ctx->items_len = 32;
+		ctx->ctx->items = palloc(sizeof(flatgeobuf_item *) * ctx->ctx->items_len);
+	}
+	if (ctx->ctx->items_len < (ctx->ctx->features_count + 1)) {
+		ctx->ctx->items_len = ctx->ctx->items_len * 2;
+		POSTGIS_DEBUGF(2, "flatgeobuf: reallocating items to len %ld", ctx->ctx->items_len);
+		ctx->ctx->items = repalloc(ctx->ctx->items, sizeof(flatgeobuf_item *) * ctx->ctx->items_len);
+		ensure_items_len(ctx);
 	}
 }
 
@@ -257,10 +270,10 @@ void flatgeobuf_check_magicbytes(struct flatgeobuf_decode_ctx *ctx)
 	uint8_t *buf = ctx->ctx->buf + ctx->ctx->offset;
 	uint32_t i;
 
-	for (i = 0; i < MAGICBYTES_LEN / 2; i++)
-		if (buf[i] != magicbytes[i])
+	for (i = 0; i < FLATGEOBUF_MAGICBYTES_LEN / 2; i++)
+		if (buf[i] != flatgeobuf_magicbytes[i])
 			elog(ERROR, "Data is not FlatGeobuf");
-	ctx->ctx->offset += MAGICBYTES_LEN;
+	ctx->ctx->offset += FLATGEOBUF_MAGICBYTES_LEN;
 }
 
 static void decode_properties(struct flatgeobuf_decode_ctx *ctx, Datum *values, bool *isnull)
@@ -448,8 +461,6 @@ void flatgeobuf_decode_row(struct flatgeobuf_decode_ctx *ctx)
 	Datum *values = palloc0(natts * sizeof(Datum *));
 	bool *isnull = palloc0(natts * sizeof(bool *));
 
-	POSTGIS_DEBUGF(3, "natts %d", natts);
-
 	values[0] = Int32GetDatum(ctx->fid);
 
 	if (flatgeobuf_decode_feature(ctx->ctx))
@@ -480,19 +491,20 @@ void flatgeobuf_decode_row(struct flatgeobuf_decode_ctx *ctx)
 /**
  * Initialize aggregation context.
  */
-struct flatgeobuf_agg_ctx *flatgeobuf_agg_ctx_init(const char *geom_name)
+struct flatgeobuf_agg_ctx *flatgeobuf_agg_ctx_init(const char *geom_name, const bool create_index)
 {
 	struct flatgeobuf_agg_ctx *ctx;
-	size_t size = VARHDRSZ + sizeof(magicbytes);
+	size_t size = VARHDRSZ + FLATGEOBUF_MAGICBYTES_SIZE;
 	ctx = palloc0(sizeof(*ctx));
 	ctx->ctx = palloc0(sizeof(flatgeobuf_ctx));
 	ctx->ctx->buf = lwalloc(size);
-	memcpy(ctx->ctx->buf + VARHDRSZ, magicbytes, sizeof(magicbytes));
+	memcpy(ctx->ctx->buf + VARHDRSZ, flatgeobuf_magicbytes, FLATGEOBUF_MAGICBYTES_SIZE);
 	ctx->geom_name = geom_name;
 	ctx->geom_index = 0;
 	ctx->ctx->features_count = 0;
 	ctx->ctx->offset = size;
 	ctx->tupdesc = NULL;
+	ctx->ctx->create_index = create_index;
 	return ctx;
 }
 
@@ -522,6 +534,8 @@ void flatgeobuf_agg_transfn(struct flatgeobuf_agg_ctx *ctx)
 		encode_header(ctx);
 
 	encode_properties(ctx);
+	if (ctx->ctx->create_index)
+		ensure_items_len(ctx);
 	flatgeobuf_encode_feature(ctx->ctx);
 }
 
@@ -534,10 +548,15 @@ uint8_t *flatgeobuf_agg_finalfn(struct flatgeobuf_agg_ctx *ctx)
 {
 	POSTGIS_DEBUGF(3, "called at offset %ld", ctx->ctx->offset);
 	if (ctx == NULL)
-		flatgeobuf_agg_ctx_init(NULL);
+		flatgeobuf_agg_ctx_init(NULL, false);
 	// header only result
-	if (ctx->ctx->features_count == 0)
+	if (ctx->ctx->features_count == 0) {
 		encode_header(ctx);
+	}
+	else if (ctx->ctx->create_index) {
+		ctx->ctx->index_node_size = 16;
+		flatgeobuf_create_index(ctx->ctx);
+	}
 	if (ctx->tupdesc != NULL)
 		ReleaseTupleDesc(ctx->tupdesc);
 	SET_VARSIZE(ctx->ctx->buf, ctx->ctx->offset);

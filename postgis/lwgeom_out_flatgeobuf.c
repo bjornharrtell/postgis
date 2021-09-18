@@ -45,6 +45,7 @@ Datum pgis_asflatgeobuf_transfn(PG_FUNCTION_ARGS)
 {
 	MemoryContext aggcontext, oldcontext;
 	char *geom_name = NULL;
+	bool create_index = false;
 	flatgeobuf_agg_ctx *ctx;
 
 	POSTGIS_DEBUG(2, "calling pgis_asflatgeobuf_transfn");
@@ -58,8 +59,10 @@ Datum pgis_asflatgeobuf_transfn(PG_FUNCTION_ARGS)
 
 	if (PG_ARGISNULL(0)) {
 		if (PG_NARGS() > 2 && !PG_ARGISNULL(2))
-			geom_name = text_to_cstring(PG_GETARG_TEXT_P(2));
-		ctx = flatgeobuf_agg_ctx_init(geom_name);
+			create_index = PG_GETARG_BOOL(2);
+		if (PG_NARGS() > 3 && !PG_ARGISNULL(3))
+			geom_name = text_to_cstring(PG_GETARG_TEXT_P(3));
+		ctx = flatgeobuf_agg_ctx_init(geom_name, create_index);
 	} else {
 		ctx = (flatgeobuf_agg_ctx *) PG_GETARG_POINTER(0);
 	}

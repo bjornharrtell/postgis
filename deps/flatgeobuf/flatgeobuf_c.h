@@ -8,6 +8,10 @@ extern "C" {
 #include "liblwgeom.h"
 #include "lwgeom_log.h"
 
+extern uint8_t flatgeobuf_magicbytes[];
+extern uint8_t FLATGEOBUF_MAGICBYTES_SIZE;
+extern uint8_t FLATGEOBUF_MAGICBYTES_LEN;
+
 // need c compatible variant of this enum
 #define flatgeobuf_column_type_byte UINT8_C(0)
 #define flatgeobuf_column_type_ubyte UINT8_C(1)
@@ -40,16 +44,32 @@ typedef struct flatgeobuf_column
 	const char * metadata;
 } flatgeobuf_column;
 
+typedef struct flatgeobuf_item
+{
+	double xmin;
+	double xmax;
+	double ymin;
+	double ymax;
+	uint32_t size;
+	uint64_t offset;
+} flatgeobuf_item;
+
 typedef struct flatgeobuf_ctx
 {
     // header contents
 	const char *name;
 	uint64_t features_count;
 	uint8_t geometry_type;
+	bool has_extent;
+	double xmin;
+	double xmax;
+	double ymin;
+	double ymax;
 	bool has_z;
 	bool has_m;
 	bool has_t;
 	bool has_tm;
+	uint16_t index_node_size;
 	int32_t srid;
 	flatgeobuf_column **columns;
 	uint16_t columns_size;
@@ -67,10 +87,16 @@ typedef struct flatgeobuf_ctx
     // encode input
     const char *geom_name;
 	uint32_t geom_index;
+
+	// encode spatial index bookkeeping
+	bool create_index;
+	flatgeobuf_item **items;
+	uint64_t items_len;
 } flatgeobuf_ctx;
 
 int flatgeobuf_encode_header(flatgeobuf_ctx *ctx);
 int flatgeobuf_encode_feature(flatgeobuf_ctx *ctx);
+void flatgeobuf_create_index(flatgeobuf_ctx *ctx);
 
 int flatgeobuf_decode_header(flatgeobuf_ctx *ctx);
 int flatgeobuf_decode_feature(flatgeobuf_ctx *ctx);
